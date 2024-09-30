@@ -29,3 +29,11 @@ Data pre-processing and statistical analysis was conducted using version 4.4.0 o
 * version 1.4-25 of the *multcomp* package,
 * version 2.3.0 of the *gridExtra* package, and
 * version 3.0.0 of the *apaTables* package
+
+## Supplemental Analyses
+
+For readers interested in the supplemental analyses discussed in my dissertation and who are unfamiliar with the structure of GitHub, I have provided direct download links to the relevant files below. These will download a local copy of these files to your computer. Readers who do not have the necessary software to open .qmd files (i.e., *R* and an IDE, if desired) may view the code and output for the supplemental materials directly in their web browser by downloading the '.html' file.
+
+[Download the supplemental analyses in .html format](https://raw.githubusercontent.com/liamadoyle/PhD_Study_3/main/supplemental_analyses.html)
+[Download the supplemental analyses in .qmd format](https://raw.githubusercontent.com/liamadoyle/PhD_Study_3/main/supplemental_analyses.qmd)
+
