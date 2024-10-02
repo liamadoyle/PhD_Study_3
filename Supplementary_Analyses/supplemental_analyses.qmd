@@ -1,0 +1,493 @@
+---
+title: "supplemental_analyses"
+author: "Liam Doyle"
+format: html
+embed-resources: true
+editor: visual
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(tidyr)
+library(readxl)
+library(psych)
+library(gt)
+library(corrplot)
+library(ggcorrplot)
+library(WRS2)
+library(interactions)
+library(jtools)
+library(MASS)
+library(robustlmm)
+library(lme4)
+library(lmerTest)
+library(sandwich)
+library(clubSandwich)
+library(sjPlot)
+library(ggeffects)
+library(marginaleffects)
+library(TOSTER)
+library(cocor)
+```
+
+## Loading Data
+
+```{r load, include=FALSE}
+data <- read_csv("analysis_wide.csv")
+```
+
+## Supplementary Analyses: Addressing Potential Order Confound Effect
+
+I will address the potential order confound effect in several ways. To begin with, I will start by subsetting each participant's first five data points and their last five data points in the one-shot games and comparing them to determine their consistency. After that, I will use a paired samples *t*-test to determine if there is a significant difference between the mean defection rate/average payoff/relative payoff in the first half vs. the second half.
+
+### Mean Scores
+
+In the first code chunk, I will examine the mean defection rates in the first and second half.
+
+```{r confound defection means}
+
+# Creating list of columns for mean scores
+
+first_half <- paste0("OS", c(1:5))
+second_half <- paste0("OS", c(6:10))
+
+# Creating two new columns (i.e., first-half mean scores and second-half mean scores for OS games)
+
+confound <- data %>%
+  mutate(
+    OS_Avg_1 = round(base::rowMeans(dplyr::select(., all_of(first_half)), na.rm = TRUE), 2),
+    OS_Avg_2 = round(base::rowMeans(dplyr::select(., all_of(second_half)), na.rm = TRUE), 2
+  ))
+
+# Examining summary statistics of the two new variables
+
+psych::describe(confound[, c("OS_Avg_1", "OS_Avg_2")])
+
+# Using TOSTER to examine equivalence based on a raw difference of 0.05 (i.e., 5% difference in defection rate)
+
+res_1 <- t_TOST(confound$OS_Avg_1,
+       confound$OS_Avg_2,
+       hypothesis = "MET",
+       paired = TRUE,
+       eqb = c(-.05, 0))
+
+res_1
+
+TOSTER::describe(res_1)
+
+plot(res_1, type = "tnull")
+
+```
+
+In the second code chunk, I will examine the means for average payoffs in the first and second half of OS trials.
+
+```{r confound average payoff means}
+
+# Creating list of columns for mean scores
+
+first_half <- paste0("OSF", c(1:5))
+second_half <- paste0("OSF", c(6:10))
+
+# Creating two new columns (i.e., first-half average payoff and second-half average payoff for OS games)
+
+confound <- confound %>%
+  mutate(
+    OSF_Avg_1 = round(base::rowMeans(dplyr::select(., all_of(first_half)), na.rm = TRUE), 2),
+    OSF_Avg_2 = round(base::rowMeans(dplyr::select(., all_of(second_half)), na.rm = TRUE), 2
+  ))
+
+# Examining summary statistics of the two new variables
+
+psych::describe(confound[, c("OSF_Avg_1", "OSF_Avg_2")])
+
+# Using TOSTER to examine equivalence based on a raw difference of 1 point in payoffs (i.e., 5% difference in exploitative behavior)
+
+res_2 <- t_TOST(confound$OSF_Avg_1,
+       confound$OSF_Avg_2,
+       hypothesis = "MET",
+       paired = TRUE,
+       eqb = c(0, -1))
+
+res_2
+
+TOSTER::describe(res_2)
+
+plot(res_2, type = "tnull")
+```
+
+In the third code chunk, I will examine the means for relative payoffs in the first and second half of OS trials.
+
+```{r confound relative payoff means}
+
+# Creating list of columns for mean scores
+
+first_half <- paste0("Diff_OSF", c(1:5))
+second_half <- paste0("Diff_OSF", c(6:10))
+
+# Creating two new columns (i.e., first-half mean scores and second-half mean scores for OS games)
+
+confound <- confound %>%
+  mutate(
+    Diff_OSF_Avg_1 = round(base::rowMeans(dplyr::select(., all_of(first_half)), na.rm = TRUE), 2),
+    Diff_OSF_Avg_2 = round(base::rowMeans(dplyr::select(., all_of(second_half)), na.rm = TRUE), 2
+  ))
+
+# Examining summary statistics of the two new variables
+
+psych::describe(confound[, c("Diff_OSF_Avg_1", "Diff_OSF_Avg_2")])
+
+# Using TOSTER to examine equivalence based on a raw difference of 1 point in payoffs (i.e., 5% difference in exploitative behavior)
+
+res_3 <- t_TOST(confound$Diff_OSF_Avg_1,
+       confound$Diff_OSF_Avg_2,
+       hypothesis = "MET",
+       paired = TRUE,
+       eqb = 1)
+
+res_3
+
+TOSTER::describe(res_3)
+
+plot(res_3, type = "tnull")
+
+```
+
+### Correlations
+
+The second way that I will examine the potential order confound is by examining (a) the correlations between psychopathy and the two new variables and (b) examining the correlations between the two new variables and the iterated variable. In the first code chunk, I will examine the defection rates.
+
+```{r confound defection correlation}
+
+# Setting seed
+
+set.seed(123)
+
+# Examining correlation between psychopathy and first/second half OS defection rates
+
+pbcor(confound$OS_Avg_1, confound$SRP_Total, ci = TRUE, nboot = 1000)
+
+pbcor(confound$OS_Avg_2, confound$SRP_Total, ci = TRUE, nboot = 1000)
+
+# Comparing first and second half correlations w/ psychopathy using TOSTER (r1 = .109, r2 = .1269)
+
+boot_cor_test(confound$OS_Avg_2,
+              confound$SRP_Total,
+              alternative = "greater",
+              method = "bend",
+              null = .109
+              )
+
+# Examining correlation between iterated defection rates and first/second half OS defection rates
+
+pbcor(confound$OS_Avg_1, confound$IT_Avg, ci = TRUE, nboot = 1000)
+
+pbcor(confound$OS_Avg_2, confound$IT_Avg, ci = TRUE, nboot = 1000)
+
+# Comparing first and second correlations using TOSTER (r1 = .4876, r2 = .5143)
+
+boot_cor_test(confound$OS_Avg_2,
+              confound$IT_Avg,
+              alternative = "greater",
+              method = "bend",
+              null = .4876
+              )
+```
+
+In the second code chunk, I will examine the correlations with the average payoffs.
+
+```{r confound average payoff correlation}
+
+# Setting seed
+
+set.seed(123)
+
+# Examining correlation between psychopathy and first/second half OS average payoffs
+
+pbcor(confound$OSF_Avg_1, confound$SRP_Total, ci = TRUE, nboot = 1000)
+
+pbcor(confound$OSF_Avg_2, confound$SRP_Total, ci = TRUE, nboot = 1000)
+
+# Comparing first and second half correlations w/ psychopathy using TOSTER (r1 = -.005, r2 = .148)
+
+boot_cor_test(confound$OSF_Avg_2,
+              confound$SRP_Total,
+              alternative = "greater",
+              method = "bend",
+              null = -.005
+              )
+
+# Examining correlation between iterated average payoffs and first/second half OS average payoffs
+
+pbcor(confound$OSF_Avg_1, confound$ITF_Avg, ci = TRUE, nboot = 1000)
+
+pbcor(confound$OSF_Avg_2, confound$ITF_Avg, ci = TRUE, nboot = 1000)
+
+# Comparing first and second correlations using TOSTER (r1 = -.248, r2 = -.155)
+
+boot_cor_test(confound$OSF_Avg_2,
+              confound$ITF_Avg,
+              alternative = "less",
+              method = "bend",
+              null = -.248
+              )
+```
+
+In the third code chunk, I will examine the correlations with the relative payoffs.
+
+```{r confound relative payoff correlation}
+
+# Setting seed
+
+set.seed(123)
+
+# Examining correlation between psychopathy and first/second half OS relative payoffs
+
+pbcor(confound$Diff_OSF_Avg_1, confound$SRP_Total, ci = TRUE, nboot = 1000)
+
+pbcor(confound$Diff_OSF_Avg_2, confound$SRP_Total, ci = TRUE, nboot = 1000)
+
+# Comparing first and second half correlations w/ psychopathy using TOSTER (r1 = .047, r2 = .162)
+
+boot_cor_test(confound$Diff_OSF_Avg_2,
+              confound$SRP_Total,
+              alternative = "greater",
+              method = "bend",
+              null = .047
+              )
+
+# Examining correlation between iterated relative payoffs and first/second half OS relative payoffs
+
+pbcor(confound$Diff_OSF_Avg_1, confound$Diff_IT_Avg, ci = TRUE, nboot = 1000)
+
+pbcor(confound$Diff_OSF_Avg_2, confound$Diff_IT_Avg, ci = TRUE, nboot = 1000)
+
+# Comparing first and second correlations using TOSTER (r1 = .263, r2 = .323)
+
+boot_cor_test(confound$Diff_OSF_Avg_2,
+              confound$Diff_IT_Avg,
+              alternative = "greater",
+              method = "bend",
+              null = .263
+              )
+```
+
+### Linear Mixed-Effects Models
+
+The final (and most important way) that I will examine the potential order confound is by examining the parameters for each linear mixed-effects model, reconstructed so that actions/payoffs in one-shot games are represented by either (a) the first five interactions or (b) the second five interactions. There does not exist a package for the statistical comparison of linear mixed effects model coefficients, and I lack the mathematical training to construct the appropriate functions to do so. As such, comparison of parameters will be done manually.
+
+In the first model, I will examine the potential order effect by examining a linear mixed effects model predicting defection rates from psychopathy scores and game type (OS first half, OS second half, and Iterated).
+
+```{r confound lme defection}
+
+# Creating list of columns for mean scores
+
+first_half <- paste0("OS", c(1:5))
+second_half <- paste0("OS", c(6:10))
+
+# Creating two new columns (i.e., first-half mean scores and second-half mean scores for OS games)
+
+confound <- data %>%
+  mutate(
+    OS_Avg_1 = round(base::rowMeans(dplyr::select(., all_of(first_half)), na.rm = TRUE), 2),
+    OS_Avg_2 = round(base::rowMeans(dplyr::select(., all_of(second_half)), na.rm = TRUE), 2
+  ))
+
+# Step 1: Select the relevant columns, including 'mean_second_half'
+
+filtered_data_confound <- confound %>%
+  dplyr::select(Participant_ID, SRP_Total, OS_Avg_1, OS_Avg_2, IT_Avg)
+
+# Step 2: Pivot data to long format
+
+long_data <- pivot_longer(
+  filtered_data_confound,
+  cols = c("OS_Avg_1", "OS_Avg_2", "IT_Avg"),
+  names_to = "Game_Type",
+  values_to = "Decision"
+)
+
+# Step 3: Recode 'Game_Type' to 0 for one-shot (mean_first_half), 1 for iterated (IT_Avg), and 2 for second-half one-shot (mean_second_half)
+
+long_data <- long_data %>%
+  mutate(Game_Type = case_when(
+    Game_Type == "OS_Avg_1" ~ 0,
+    Game_Type == "OS_Avg_2" ~ 2,
+    Game_Type == "IT_Avg" ~ 1,
+    TRUE ~ as.integer(NA)
+  ))
+
+# Step 4: Convert 'Game_Type' to a factor with appropriate labels
+
+long_data <- long_data %>%
+  mutate(Game_Type = factor(Game_Type,
+                            levels = c(0, 1, 2),
+                            labels = c("One-Shot First Half", "Iterated", 
+                                       "One-Shot Second Half")))
+
+# Linear mixed model with 'Game_Type' as a factor (including both one-shot halves and iterated games)
+model <- rlmer(Decision ~ SRP_Total * Game_Type + (1 | Participant_ID), data = long_data)
+
+# Create APA style table with additional parameters (see sjPlot documentation)
+
+tab_model(
+  model,
+  show.std = "std"
+)
+
+# Examine marginal means 
+
+test_predictions(model,
+                 c("SRP_Total", "Game_Type"),
+                 test = NULL)
+
+plot_model(model, 
+           type = "int",
+           title = "Predicted Values of Average Defection Rate in the PDG",
+           axis.title = c("SRP Total Scores", "Average Payoffs"),
+           legend.title = "Game Type")
+
+```
+
+In the second model, I will examine the potential order effect by examining a linear mixed effects model predicting average payoffs from psychopathy scores and game type (OS first half, OS second half, and Iterated).
+
+```{r confound lme avg_payoff}
+
+# Creating list of columns for mean scores
+
+first_half <- paste0("OSF", c(1:5))
+second_half <- paste0("OSF", c(6:10))
+
+# Creating two new columns (i.e., first-half mean scores and second-half mean scores for OS games)
+
+confound <- data %>%
+  mutate(
+    OSF_Avg_1 = round(base::rowMeans(dplyr::select(., all_of(first_half)), na.rm = TRUE), 2),
+    OSF_Avg_2 = round(base::rowMeans(dplyr::select(., all_of(second_half)), na.rm = TRUE), 2
+  ))
+
+# Step 1: Select the relevant columns, including 'mean_second_half'
+
+filtered_data_confound <- confound %>%
+  dplyr::select(Participant_ID, SRP_Total, OSF_Avg_1, OSF_Avg_2, ITF_Avg)
+
+# Step 2: Pivot data to long format
+
+long_data <- pivot_longer(
+  filtered_data_confound,
+  cols = c("OSF_Avg_1", "OSF_Avg_2", "ITF_Avg"),
+  names_to = "Game_Type",
+  values_to = "Average_Payoff"
+)
+
+# Step 3: Recode 'Game_Type' to 0 for one-shot (mean_first_half), 1 for iterated (IT_Avg), and 2 for second-half one-shot (mean_second_half)
+
+long_data <- long_data %>%
+  mutate(Game_Type = case_when(
+    Game_Type == "OSF_Avg_1" ~ 0,
+    Game_Type == "OSF_Avg_2" ~ 2,
+    Game_Type == "ITF_Avg" ~ 1,
+    TRUE ~ as.integer(NA)
+  ))
+
+# Step 4: Convert 'Game_Type' to a factor with appropriate labels
+
+long_data <- long_data %>%
+  mutate(Game_Type = factor(Game_Type,
+                            levels = c(0, 1, 2),
+                            labels = c("One-shot First Half", "Iterated", 
+                                       "One-shot Second Half")))
+
+# Linear mixed model with 'Game_Type' as a factor (including both one-shot halves and iterated games)
+model <- rlmer(Average_Payoff ~ SRP_Total * Game_Type + (1 | Participant_ID), data = long_data)
+
+# Create APA style table with additional parameters (see sjPlot documentation)
+
+tab_model(
+  model,
+  show.std = "std"
+)
+
+# Examine marginal means 
+
+test_predictions(model,
+                 c("SRP_Total", "Game_Type"),
+                 test = NULL)
+
+plot_model(model, 
+           type = "int",
+           title = "Predicted Values of Average Payoffs in the PDG",
+           axis.title = c("SRP Total Scores", "Average Payoffs"),
+           legend.title = "Game Type")
+
+```
+
+In the third model, I will examine the potential order effect by examining a linear mixed effects model predicting relative payoffs (i.e., difference scores) from psychopathy scores and game type (OS first half, OS second half, and Iterated).
+
+```{r confound lme diff_payoff}
+# Creating list of columns for mean scores
+
+first_half <- paste0("Diff_OSF", c(1:5))
+second_half <- paste0("Diff_OSF", c(6:10))
+
+# Creating two new columns (i.e., first-half mean scores and second-half mean scores for OS games)
+
+confound <- data %>%
+  mutate(
+    Diff_OSF_Avg_1 = round(base::rowMeans(dplyr::select(., all_of(first_half)), na.rm = TRUE), 2),
+    Diff_OSF_Avg_2 = round(base::rowMeans(dplyr::select(., all_of(second_half)), na.rm = TRUE), 2
+  ))
+
+# Step 1: Select the relevant columns, including 'mean_second_half'
+
+filtered_data_confound <- confound %>%
+  dplyr::select(Participant_ID, SRP_Total, Diff_OSF_Avg_1, Diff_OSF_Avg_2, Diff_IT_Avg)
+
+# Step 2: Pivot data to long format
+
+long_data <- pivot_longer(
+  filtered_data_confound,
+  cols = c("Diff_OSF_Avg_1", "Diff_OSF_Avg_2", "Diff_IT_Avg"),
+  names_to = "Game_Type",
+  values_to = "Relative_Payoff"
+)
+
+# Step 3: Recode 'Game_Type' to 0 for one-shot (mean_first_half), 1 for iterated (IT_Avg), and 2 for second-half one-shot (mean_second_half)
+
+long_data <- long_data %>%
+  mutate(Game_Type = case_when(
+    Game_Type == "Diff_OSF_Avg_1" ~ 0,
+    Game_Type == "Diff_OSF_Avg_2" ~ 2,
+    Game_Type == "Diff_IT_Avg" ~ 1,
+    TRUE ~ as.integer(NA)
+  ))
+
+# Step 4: Convert 'Game_Type' to a factor with appropriate labels
+
+long_data <- long_data %>%
+  mutate(Game_Type = factor(Game_Type,
+                            levels = c(0, 1, 2),
+                            labels = c("OS First Half", "Iterated", 
+                                       "OS Second Half")))
+
+# Linear mixed model with 'Game_Type' as a factor (including both one-shot halves and iterated games)
+model <- rlmer(Relative_Payoff ~ SRP_Total * Game_Type + (1 | Participant_ID), data = long_data)
+
+# Create APA style table with additional parameters (see sjPlot documentation)
+
+tab_model(
+  model,
+  show.std = "std"
+)
+
+# Examine marginal means 
+
+test_predictions(model,
+                 c("SRP_Total", "Game_Type"),
+                 test = NULL)
+
+plot_model(model, 
+           type = "int",
+           title = "Predicted Values of Average Relative Payoffs in the PDG",
+           axis.title = c("SRP Total Scores", "Average Relative Payoffs"),
+           legend.title = "Game Type")
+```
